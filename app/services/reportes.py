@@ -6,16 +6,21 @@ from app.services.db import get_engine
 
 
 @st.cache_data(ttl=60)
-def saldo_cuenta(tienda_id: str, cuenta: str = "mercado_pago") -> float:
-    """Replica la fórmula de la hoja 'Resumen' del Excel:
-    ingresos de ventas - compras - gastos de la cuenta - retiros - envíos de la cuenta.
+def saldo_mercado_pago(tienda_id: str) -> float:
+    """Saldo real de la única caja activa hoy (Mercado Pago). Replica la fórmula de la
+    hoja 'Resumen' del Excel: ingresos de ventas (solo Mercado Libre + Web, igual que el
+    Excel original) - compras - gastos de MP - retiros - envíos de MP.
+
+    Compras, retiros e ingresos de ventas son una sola bolsa para toda la tienda (no están
+    separados por cuenta en los datos), por eso este saldo solo tiene sentido para la
+    cuenta que de verdad se usa como caja.
     """
     engine = get_engine()
     with engine.connect() as conn:
         ingresos_ventas = conn.execute(
             text(
                 "select coalesce(sum(ingreso_bruto - comision_ml + ingreso_envio), 0) "
-                "from ventas where tienda_id = :tienda_id"
+                "from ventas where tienda_id = :tienda_id and canal in ('mercado_libre', 'web')"
             ),
             {"tienda_id": tienda_id},
         ).scalar()
@@ -26,9 +31,9 @@ def saldo_cuenta(tienda_id: str, cuenta: str = "mercado_pago") -> float:
         total_gastos = conn.execute(
             text(
                 "select coalesce(sum(monto), 0) from gastos "
-                "where tienda_id = :tienda_id and cuenta = :cuenta"
+                "where tienda_id = :tienda_id and cuenta = 'mercado_pago'"
             ),
-            {"tienda_id": tienda_id, "cuenta": cuenta},
+            {"tienda_id": tienda_id},
         ).scalar()
         total_retiros = conn.execute(
             text("select coalesce(sum(monto), 0) from retiros where tienda_id = :tienda_id"),
@@ -37,14 +42,37 @@ def saldo_cuenta(tienda_id: str, cuenta: str = "mercado_pago") -> float:
         total_envios = conn.execute(
             text(
                 "select coalesce(sum(costo_total), 0) from envios "
-                "where tienda_id = :tienda_id and cuenta = :cuenta"
+                "where tienda_id = :tienda_id and cuenta = 'mercado_pago'"
             ),
-            {"tienda_id": tienda_id, "cuenta": cuenta},
+            {"tienda_id": tienda_id},
         ).scalar()
 
     return float(ingresos_ventas) - float(total_compras) - float(total_gastos) - float(total_retiros) - float(
         total_envios
     )
+
+
+@st.cache_data(ttl=60)
+def gastos_pagados_santander(tienda_id: str) -> float:
+    """Santander no es una caja activa (no tiene ingresos propios registrados), así que en
+    vez de un 'saldo' inventado mostramos cuánto se pagó históricamente con esa cuenta."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        total_gastos = conn.execute(
+            text(
+                "select coalesce(sum(monto), 0) from gastos "
+                "where tienda_id = :tienda_id and cuenta = 'santander'"
+            ),
+            {"tienda_id": tienda_id},
+        ).scalar()
+        total_envios = conn.execute(
+            text(
+                "select coalesce(sum(costo_total), 0) from envios "
+                "where tienda_id = :tienda_id and cuenta = 'santander'"
+            ),
+            {"tienda_id": tienda_id},
+        ).scalar()
+    return float(total_gastos) + float(total_envios)
 
 
 @st.cache_data(ttl=60)
