@@ -1,8 +1,16 @@
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 
 from app.services.db import get_engine
+
+ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets"
+LOGOS_POR_SLUG = {
+    "neptunoshop": ASSETS_DIR / "logo_neptuno.jpeg",
+    "marea": ASSETS_DIR / "logo_marea.jpeg",
+}
 
 
 @st.cache_data(ttl=300)
@@ -39,4 +47,9 @@ def selector_tienda() -> tuple[str, str]:
 
     nombre = st.session_state["tienda_nombre"]
     fila = tiendas[tiendas["nombre"] == nombre].iloc[0]
+
+    logo = LOGOS_POR_SLUG.get(fila["slug"])
+    if logo and logo.exists():
+        st.logo(str(logo), size="large")
+
     return fila["id"], fila["nombre"]

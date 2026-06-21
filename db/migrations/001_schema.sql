@@ -44,6 +44,7 @@ create table compras (
     cantidad numeric not null check (cantidad <> 0), -- negativo = devolucion a proveedor
     costo_unitario numeric not null, -- puede ser negativo: credito/reembolso de un proveedor
     costo_total numeric generated always as (cantidad * costo_unitario) stored,
+    cuenta text not null default 'mercado_pago', -- de que cuenta salio la plata (mercado_pago | otra)
     proveedor_comentario text,
     creado_en timestamptz not null default now()
 );

@@ -115,10 +115,22 @@ def migrar_ventas(conn, wb, hoja: str, canal: str, tienda_id: str, productos_cac
         hora = hora if hasattr(hora, "hour") else None
 
         precio_unitario = _numero(ws.cell(r, 5).value)
-        comision_ml = _numero(ws.cell(r, 7).value)
         ingreso_envio = _numero(ws.cell(r, 9).value)
         costo_total = _numero(ws.cell(r, 10).value)
         comentario = ws.cell(r, 12).value
+
+        # "Ingreso Neto" (columna H) es lo que el usuario tipea a mano mirando lo que
+        # Mercado Libre efectivamente le acreditó - es la fuente de verdad, no una fórmula.
+        # Miles de filas tienen esa columna vacía o con un valor viejo pegado (no actualizado
+        # cuando cambiaba precio/comisión), así que solo confiamos en ella cuando hay un
+        # número ahí; si está vacía, la reconstruimos con precio×cantidad - comisión (columna G).
+        ingreso_bruto = float(precio_unitario) * float(cantidad)
+        valor_h = ws.cell(r, 8).value
+        if _es_numero_valido(valor_h):
+            ingreso_neto_real = _numero(valor_h)
+        else:
+            ingreso_neto_real = ingreso_bruto - _numero(ws.cell(r, 7).value)
+        comision_ml = max(ingreso_bruto - ingreso_neto_real, 0)
 
         costo_unitario_venta = float(costo_total) / float(cantidad) if cantidad else 0
 
@@ -337,6 +349,11 @@ def main():
     parser.add_argument("excel_path")
     parser.add_argument("--tienda", default="neptunoshop", help="slug de la tienda destino")
     parser.add_argument("--dry-run", action="store_true", help="solo cuenta filas, no inserta nada")
+    parser.add_argument(
+        "--solo-ventas",
+        action="store_true",
+        help="borra y vuelve a migrar solo la tabla ventas (compras/gastos/retiros/envios quedan intactos)",
+    )
     args = parser.parse_args()
 
     load_dotenv()
@@ -350,6 +367,21 @@ def main():
 
     with engine.begin() as conn:
         tienda_id = conectar_tienda(conn, args.tienda)
+
+        if args.solo_ventas:
+            if not args.dry_run:
+                conn.execute(text("delete from ventas where tienda_id = :t"), {"t": tienda_id})
+            n_neptuno = migrar_ventas(conn, wb, "Ventas NeptunoShop", "mercado_libre", tienda_id, productos_cache, args.dry_run)
+            n_web = migrar_ventas(conn, wb, "Ventas WEB", "web", tienda_id, productos_cache, args.dry_run)
+            n_tiendimport = migrar_ventas(conn, wb, "Ventas Tiendimport", "otro", tienda_id, productos_cache, args.dry_run)
+            if args.dry_run:
+                conn.rollback()
+            print(f"Ventas Mercado Libre: {n_neptuno}")
+            print(f"Ventas Web:           {n_web}")
+            print(f"Ventas Tiendimport:   {n_tiendimport}")
+            if args.dry_run:
+                print("\n(dry-run: no se modificó nada)")
+            return
 
         n_neptuno = migrar_ventas(conn, wb, "Ventas NeptunoShop", "mercado_libre", tienda_id, productos_cache, args.dry_run)
         n_web = migrar_ventas(conn, wb, "Ventas WEB", "web", tienda_id, productos_cache, args.dry_run)

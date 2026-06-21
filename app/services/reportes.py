@@ -25,7 +25,10 @@ def saldo_mercado_pago(tienda_id: str) -> float:
             {"tienda_id": tienda_id},
         ).scalar()
         total_compras = conn.execute(
-            text("select coalesce(sum(costo_total), 0) from compras where tienda_id = :tienda_id"),
+            text(
+                "select coalesce(sum(costo_total), 0) from compras "
+                "where tienda_id = :tienda_id and cuenta = 'mercado_pago'"
+            ),
             {"tienda_id": tienda_id},
         ).scalar()
         total_gastos = conn.execute(
