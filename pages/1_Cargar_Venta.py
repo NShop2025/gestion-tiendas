@@ -44,20 +44,23 @@ st.divider()
 st.subheader("Agregar producto")
 
 form_key = f"agregar_item_{st.session_state['item_form_key']}"
-with st.form(form_key, clear_on_submit=True):
-    producto_nombre = st.selectbox(
-        "Producto (escribí para buscar o cargar uno nuevo)",
-        opciones_producto,
-        index=None,
-        accept_new_options=True,
-        placeholder="Empezá a escribir...",
-    )
 
+# Fuera del form: así la página reacciona al toque y el costo sugerido se actualiza
+# apenas elegís el producto (adentro de un form, Streamlit no reacciona hasta enviarlo).
+producto_nombre = st.selectbox(
+    "Producto (escribí para buscar o cargar uno nuevo)",
+    opciones_producto,
+    index=None,
+    accept_new_options=True,
+    placeholder="Empezá a escribir...",
+    key=f"producto_{form_key}",
+)
+costo_sugerido = ultimo_costo_unitario_por_nombre(tienda_id, producto_nombre) if producto_nombre else 0.0
+
+with st.form(form_key, clear_on_submit=True):
     c4, c5 = st.columns(2)
     cantidad = c4.number_input("Cantidad", min_value=1, step=1, value=1)
     precio_unitario = c5.number_input("Precio unitario (precio de venta)", min_value=0.0, step=1.0)
-
-    costo_sugerido = ultimo_costo_unitario_por_nombre(tienda_id, producto_nombre) if producto_nombre else 0.0
 
     c6, c7, c8 = st.columns(3)
     ingreso_neto = c6.number_input(
