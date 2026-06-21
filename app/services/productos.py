@@ -53,3 +53,22 @@ def ultimo_costo_unitario(tienda_id: str, producto_id: str) -> float:
             {"tienda_id": tienda_id, "producto_id": producto_id},
         ).fetchone()
         return float(fila[0]) if fila else 0.0
+
+
+def ultimo_costo_unitario_por_nombre(tienda_id: str, nombre: str) -> float:
+    """Igual que ultimo_costo_unitario pero buscando el producto por nombre (para productos
+    todavía no seleccionados como fila existente, ej. recién tipeados)."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        fila = conn.execute(
+            text(
+                """
+                select c.costo_unitario from compras c
+                join productos p on p.id = c.producto_id
+                where c.tienda_id = :tienda_id and p.nombre = :nombre
+                order by c.fecha desc, c.creado_en desc limit 1
+                """
+            ),
+            {"tienda_id": tienda_id, "nombre": nombre},
+        ).fetchone()
+        return float(fila[0]) if fila else 0.0
