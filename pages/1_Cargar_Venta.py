@@ -75,6 +75,7 @@ with st.form(form_key, clear_on_submit=True):
         min_value=0.0,
         step=1.0,
         value=costo_sugerido,
+        key=f"costo_{form_key}_{producto_nombre}",
     )
     comentario = st.text_input("Comentario (opcional)")
 
