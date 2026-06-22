@@ -1,7 +1,10 @@
+import altair as alt
+import pandas as pd
 import streamlit as st
 from app.services.config import cargar_config
 
 from app.services.auth import requerir_login
+from app.services.formato import fmt_money
 from app.services.reportes import metricas_generales, resumen_mensual, saldo_disponible
 from app.services.tiendas import selector_tienda
 
@@ -26,7 +29,7 @@ st.markdown(
         <div style="font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase;
                     color: #8A90A0;">Saldo disponible (Mercado Pago)</div>
         <div style="font-size: 2.6rem; font-weight: 700; color: {color}; line-height: 1.2;">
-            $ {saldo:,.0f}</div>
+            {fmt_money(saldo)}</div>
         <div style="font-size: 0.8rem; color: #6B7180; margin-top: 0.3rem;">
             Toda la plata de la tienda en una sola caja</div>
     </div>
@@ -36,10 +39,10 @@ st.markdown(
 
 # Métricas secundarias en tarjetas.
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Ingreso neto total", f"$ {m['ingreso_neto']:,.0f}")
-c2.metric("Ganancia total", f"$ {m['ganancia']:,.0f}")
-c3.metric("Mercadería comprada", f"$ {m['compras']:,.0f}")
-c4.metric("Retiros de socios", f"$ {m['retiros']:,.0f}")
+c1.metric("Ingreso neto total", fmt_money(m["ingreso_neto"]))
+c2.metric("Ganancia total", fmt_money(m["ganancia"]))
+c3.metric("Mercadería comprada", fmt_money(m["compras"]))
+c4.metric("Retiros de socios", fmt_money(m["retiros"]))
 
 st.divider()
 
@@ -47,7 +50,25 @@ st.divider()
 df = resumen_mensual(tienda_id)
 if not df.empty:
     st.subheader("Ganancia por mes")
-    df_chart = df[["mes", "ganancia"]].set_index("mes")
-    st.bar_chart(df_chart, color="#6366F1", height=280)
+    df_chart = df[["mes", "ganancia"]].copy()
+    df_chart["mes"] = pd.to_datetime(df_chart["mes"])
+    df_chart["ganancia"] = df_chart["ganancia"].round(0)
+    df_chart["Mes"] = df_chart["mes"].dt.strftime("%b %Y")
+    df_chart["Ganancia"] = df_chart["ganancia"].map(fmt_money)
+
+    chart = (
+        alt.Chart(df_chart)
+        .mark_bar(color="#6366F1", cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+        .encode(
+            x=alt.X("mes:T", title=None, axis=alt.Axis(format="%b %y")),
+            y=alt.Y("ganancia:Q", title=None),
+            tooltip=[
+                alt.Tooltip("Mes:N", title="Mes"),
+                alt.Tooltip("Ganancia:N", title="Ganancia"),
+            ],
+        )
+        .properties(height=300)
+    )
+    st.altair_chart(chart, use_container_width=True)
 else:
     st.info("Todavía no hay datos cargados.")

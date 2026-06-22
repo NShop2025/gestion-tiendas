@@ -5,6 +5,7 @@ import streamlit as st
 from sqlalchemy import text
 
 from app.services.db import get_engine
+from app.services.formato import fmt_money
 from app.services.reportes import saldo_disponible
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets"
@@ -65,7 +66,7 @@ def selector_tienda() -> tuple[str, str]:
             <div style="font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase;
                         color: #8A90A0; margin-bottom: 0.2rem;">Saldo disponible</div>
             <div style="font-size: 1.55rem; font-weight: 700; color: {color}; line-height: 1.1;">
-                $ {saldo:,.0f}</div>
+                {fmt_money(saldo)}</div>
         </div>
         """,
         unsafe_allow_html=True,
