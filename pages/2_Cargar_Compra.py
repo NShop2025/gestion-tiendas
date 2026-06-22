@@ -47,8 +47,10 @@ if enviado:
         conn.execute(
             text(
                 """
-                insert into compras (tienda_id, producto_id, fecha, cantidad, costo_unitario, proveedor_comentario)
-                values (:tienda_id, :producto_id, :fecha, :cantidad, :costo_unitario, :proveedor_comentario)
+                insert into compras
+                    (tienda_id, producto_id, fecha, cantidad, costo_unitario, costo_total, proveedor_comentario)
+                values
+                    (:tienda_id, :producto_id, :fecha, :cantidad, :costo_unitario, :costo_total, :proveedor_comentario)
                 """
             ),
             {
@@ -57,6 +59,7 @@ if enviado:
                 "fecha": fecha,
                 "cantidad": cantidad,
                 "costo_unitario": costo_unitario,
+                "costo_total": cantidad * costo_unitario,
                 "proveedor_comentario": proveedor_comentario or None,
             },
         )

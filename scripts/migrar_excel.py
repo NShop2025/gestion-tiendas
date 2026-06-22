@@ -120,17 +120,16 @@ def migrar_ventas(conn, wb, hoja: str, canal: str, tienda_id: str, productos_cac
         comentario = ws.cell(r, 12).value
 
         # "Ingreso Neto" (columna H) es lo que el usuario tipea a mano mirando lo que
-        # Mercado Libre efectivamente le acreditó - es la fuente de verdad, no una fórmula.
-        # Miles de filas tienen esa columna vacía o con un valor viejo pegado (no actualizado
-        # cuando cambiaba precio/comisión), así que solo confiamos en ella cuando hay un
-        # número ahí; si está vacía, la reconstruimos con precio×cantidad - comisión (columna G).
+        # Mercado Libre efectivamente le acreditó - es la fuente de verdad, no una fórmula,
+        # y el numero final de la hoja Resumen del Excel (que es la plata real disponible)
+        # se calcula sumando esta columna tal cual está, incluyendo las filas vacías como 0.
+        # No la reconstruimos con precio×cantidad - comisión: ese precio puede haber quedado
+        # desactualizado para ventas viejas, mientras que el ingreso neto tipeado a mano sigue
+        # siendo el correcto.
         ingreso_bruto = float(precio_unitario) * float(cantidad)
         valor_h = ws.cell(r, 8).value
-        if _es_numero_valido(valor_h):
-            ingreso_neto_real = _numero(valor_h)
-        else:
-            ingreso_neto_real = ingreso_bruto - _numero(ws.cell(r, 7).value)
-        comision_ml = max(ingreso_bruto - ingreso_neto_real, 0)
+        ingreso_neto_real = _numero(valor_h) if _es_numero_valido(valor_h) else 0
+        comision_ml = ingreso_bruto - ingreso_neto_real
 
         costo_unitario_venta = float(costo_total) / float(cantidad) if cantidad else 0
 
@@ -177,20 +176,50 @@ def migrar_compras(conn, wb, tienda_id: str, productos_cache: dict, dry_run: boo
         producto_nombre = ws.cell(r, 2).value
         cantidad = ws.cell(r, 3).value
         costo_unitario = ws.cell(r, 4).value
-        # cantidad negativa = devolucion a proveedor (resta del costo total), cantidad 0 = fila
-        # incompleta o fila de encabezado/total mezclada en los datos: se descarta. Filas sin
-        # fecha valida ('-') con costo 0 tambien se descartan (no aportan plata).
-        if fecha is None or not producto_nombre or not _es_numero_valido(cantidad) or _numero(cantidad) == 0:
+        costo_total_escrito = ws.cell(r, 5).value  # columna E: lo que el usuario escribió de costo total
+
+        if fecha is None:
+            continue  # fila vacía / sin fecha válida
+
+        tiene_costo = _es_numero_valido(costo_total_escrito) and _numero(costo_total_escrito) != 0
+        tiene_producto = bool(producto_nombre) and not (
+            isinstance(producto_nombre, str) and producto_nombre.strip().upper().startswith("TOTAL")
+        )
+
+        # Descartar solo si no aporta ni stock (producto+cantidad) ni plata (costo total).
+        if not tiene_producto and not tiene_costo:
             continue
 
-        producto_id = obtener_o_crear_producto(conn, tienda_id, str(producto_nombre), productos_cache)
+        # Algunas compras se cargaron "a granel": una fila "TOTAL" con el monto del lote y sin
+        # detalle de producto. Las migramos con un producto genérico para que el costo cuente en
+        # el saldo, sin inventar stock de un producto real.
+        if tiene_producto:
+            nombre = str(producto_nombre)
+        else:
+            proveedor = ws.cell(r, 6).value
+            nombre = f"Compra sin detalle ({proveedor})" if proveedor else "Compra sin detalle"
+
+        cantidad_valida = _es_numero_valido(cantidad) and _numero(cantidad) != 0
+        cant = _numero(cantidad) if cantidad_valida else 1
+
+        # costo_total y costo_unitario se guardan TAL CUAL están en el Excel (no se derivan uno del
+        # otro): la columna E suele tener un valor escrito que no siempre es cantidad×costo_unitario
+        # (precio desactualizado, o costo cargado agrupado en una fila TOTAL). El saldo usa costo_total.
+        costo_total = _numero(costo_total_escrito) if tiene_costo else 0
+        costo_unit = _numero(costo_unitario) if _es_numero_valido(costo_unitario) else 0
+
+        cuenta = "otra" if r in (2, 3, 4, 5, 6, 7) else "mercado_pago"
+
+        producto_id = obtener_o_crear_producto(conn, tienda_id, nombre, productos_cache)
         filas.append(
             {
                 "tienda_id": tienda_id,
                 "producto_id": producto_id,
                 "fecha": fecha,
-                "cantidad": _numero(cantidad),
-                "costo_unitario": _numero(costo_unitario),
+                "cantidad": cant,
+                "costo_unitario": costo_unit,
+                "costo_total": costo_total,
+                "cuenta": cuenta,
                 "proveedor_comentario": str(ws.cell(r, 6).value) if ws.cell(r, 6).value else None,
             }
         )
@@ -199,8 +228,10 @@ def migrar_compras(conn, wb, tienda_id: str, productos_cache: dict, dry_run: boo
         conn.execute(
             text(
                 """
-                insert into compras (tienda_id, producto_id, fecha, cantidad, costo_unitario, proveedor_comentario)
-                values (:tienda_id, :producto_id, :fecha, :cantidad, :costo_unitario, :proveedor_comentario)
+                insert into compras
+                    (tienda_id, producto_id, fecha, cantidad, costo_unitario, costo_total, cuenta, proveedor_comentario)
+                values
+                    (:tienda_id, :producto_id, :fecha, :cantidad, :costo_unitario, :costo_total, :cuenta, :proveedor_comentario)
                 """
             ),
             filas,
@@ -354,6 +385,11 @@ def main():
         action="store_true",
         help="borra y vuelve a migrar solo la tabla ventas (compras/gastos/retiros/envios quedan intactos)",
     )
+    parser.add_argument(
+        "--solo-compras",
+        action="store_true",
+        help="borra y vuelve a migrar solo la tabla compras (ventas/gastos/retiros/envios quedan intactos)",
+    )
     args = parser.parse_args()
 
     load_dotenv()
@@ -379,6 +415,17 @@ def main():
             print(f"Ventas Mercado Libre: {n_neptuno}")
             print(f"Ventas Web:           {n_web}")
             print(f"Ventas Tiendimport:   {n_tiendimport}")
+            if args.dry_run:
+                print("\n(dry-run: no se modificó nada)")
+            return
+
+        if args.solo_compras:
+            if not args.dry_run:
+                conn.execute(text("delete from compras where tienda_id = :t"), {"t": tienda_id})
+            n_compras = migrar_compras(conn, wb, tienda_id, productos_cache, args.dry_run)
+            if args.dry_run:
+                conn.rollback()
+            print(f"Compras: {n_compras}")
             if args.dry_run:
                 print("\n(dry-run: no se modificó nada)")
             return

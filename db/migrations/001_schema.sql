@@ -43,7 +43,9 @@ create table compras (
     fecha date not null,
     cantidad numeric not null check (cantidad <> 0), -- negativo = devolucion a proveedor
     costo_unitario numeric not null, -- puede ser negativo: credito/reembolso de un proveedor
-    costo_total numeric generated always as (cantidad * costo_unitario) stored,
+    -- costo_total se guarda explícito (no derivado): el Excel histórico tiene costos cargados
+    -- como total escrito que no siempre es cantidad×costo_unitario. La app lo calcula al insertar.
+    costo_total numeric not null,
     cuenta text not null default 'mercado_pago', -- de que cuenta salio la plata (mercado_pago | otra)
     proveedor_comentario text,
     creado_en timestamptz not null default now()
