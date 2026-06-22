@@ -48,6 +48,51 @@ def saldo_disponible(tienda_id: str) -> float:
     )
 
 
+@st.cache_data(ttl=30)
+def ultimas_ventas(tienda_id: str, n: int = 8) -> pd.DataFrame:
+    """Últimas ventas cargadas (no por fecha de la venta, sino por orden de carga), para que
+    quien abre la página vea de inmediato hasta dónde llegó el último que cargó."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select v.creado_en, v.fecha, v.hora, p.nombre as producto, v.cantidad,
+                       v.precio_unitario, v.canal
+                from ventas v
+                join productos p on p.id = v.producto_id
+                where v.tienda_id = :tienda_id
+                order by v.creado_en desc
+                limit :n
+                """
+            ),
+            conn,
+            params={"tienda_id": tienda_id, "n": n},
+        )
+
+
+@st.cache_data(ttl=30)
+def ultimas_compras(tienda_id: str, n: int = 8) -> pd.DataFrame:
+    """Últimas compras cargadas (por orden de carga), mismo criterio que ultimas_ventas."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select c.creado_en, c.fecha, p.nombre as producto, c.cantidad,
+                       c.costo_unitario, c.proveedor_comentario
+                from compras c
+                join productos p on p.id = c.producto_id
+                where c.tienda_id = :tienda_id
+                order by c.creado_en desc
+                limit :n
+                """
+            ),
+            conn,
+            params={"tienda_id": tienda_id, "n": n},
+        )
+
+
 @st.cache_data(ttl=60)
 def metricas_generales(tienda_id: str) -> dict:
     """Totales históricos de la tienda para las tarjetas del Resumen."""

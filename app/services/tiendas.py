@@ -53,6 +53,20 @@ def selector_tienda() -> tuple[str, str]:
     logo = LOGOS_POR_SLUG.get(fila["slug"])
     if logo and logo.exists():
         st.logo(str(logo), size="large")
+        # st.logo limita la altura nativa a 32px (size="large", el máximo soportado);
+        # se fuerza más grande acá porque a simple vista se veía chico en la sidebar.
+        st.markdown(
+            """
+            <style>
+                [data-testid="stSidebarLogo"], [data-testid="stLogoLink"] img {
+                    height: 4.5rem;
+                    max-height: none;
+                    width: auto;
+                }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
     # Saldo siempre visible en la sidebar, en cualquier página.
     saldo = saldo_disponible(fila["id"])

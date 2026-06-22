@@ -12,6 +12,7 @@ from app.services.productos import (
     obtener_o_crear_producto,
     ultimo_costo_unitario_por_nombre,
 )
+from app.services.reportes import ultimas_ventas
 from app.services.tiendas import selector_tienda
 
 cargar_config()
@@ -25,6 +26,27 @@ st.caption(
     "Si la venta tiene varios productos, agregalos todos al carrito y guardalos juntos "
     "(misma fecha y hora), como en el Excel."
 )
+
+with st.expander("🕒 Últimas ventas cargadas (para ver dónde quedó el último que cargó)", expanded=True):
+    df_ultimas = ultimas_ventas(tienda_id)
+    if df_ultimas.empty:
+        st.caption("Todavía no hay ventas cargadas.")
+    else:
+        st.dataframe(
+            df_ultimas.rename(
+                columns={
+                    "creado_en": "Cargado",
+                    "fecha": "Fecha",
+                    "hora": "Hora",
+                    "producto": "Producto",
+                    "cantidad": "Cantidad",
+                    "precio_unitario": "Precio unitario",
+                    "canal": "Canal",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 if "carrito_venta" not in st.session_state:
     st.session_state["carrito_venta"] = []
@@ -168,4 +190,5 @@ if carrito:
 
         st.session_state["carrito_venta"] = []
         listar_productos.clear()
+        ultimas_ventas.clear()
         st.success(f"Venta guardada con {len(carrito)} producto(s).")
