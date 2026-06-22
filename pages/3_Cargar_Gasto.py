@@ -6,6 +6,7 @@ from sqlalchemy import text
 
 from app.services.auth import requerir_login
 from app.services.db import get_engine
+from app.services.gastos import CATEGORIAS_GASTO
 from app.services.reportes import ultimos_gastos
 from app.services.tiendas import selector_tienda
 
@@ -23,9 +24,10 @@ with st.expander("🕒 Últimos gastos cargados (para ver dónde quedó el últi
         st.caption("Todavía no hay gastos cargados.")
     else:
         st.dataframe(
-            df_ultimos.rename(
+            df_ultimos.assign(categoria=df_ultimos["categoria"].map(CATEGORIAS_GASTO)).rename(
                 columns={
                     "fecha": "Fecha",
+                    "categoria": "Categoría",
                     "concepto": "Concepto",
                     "monto": "Monto",
                     "cuenta": "Cuenta",
@@ -41,7 +43,12 @@ with st.form("cargar_gasto"):
     fecha = c1.date_input("Fecha", value=date.today())
     cuenta = c2.selectbox("Cuenta", ["mercado_pago", "santander", "otra"])
 
-    concepto = st.text_input("Concepto")
+    categoria = st.selectbox(
+        "Categoría",
+        options=list(CATEGORIAS_GASTO.keys()),
+        format_func=lambda k: CATEGORIAS_GASTO[k],
+    )
+    concepto = st.text_input("Concepto (detalle dentro de la categoría)")
     monto = st.number_input("Monto", min_value=0.0, step=1.0)
     comentario = st.text_input("Comentario (opcional)")
 
@@ -57,8 +64,8 @@ if enviado:
         conn.execute(
             text(
                 """
-                insert into gastos (tienda_id, fecha, concepto, monto, cuenta, comentario)
-                values (:tienda_id, :fecha, :concepto, :monto, :cuenta, :comentario)
+                insert into gastos (tienda_id, fecha, concepto, monto, cuenta, categoria, comentario)
+                values (:tienda_id, :fecha, :concepto, :monto, :cuenta, :categoria, :comentario)
                 """
             ),
             {
@@ -67,6 +74,7 @@ if enviado:
                 "concepto": concepto,
                 "monto": monto,
                 "cuenta": cuenta,
+                "categoria": categoria,
                 "comentario": comentario or None,
             },
         )

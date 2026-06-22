@@ -102,7 +102,7 @@ def ultimos_gastos(tienda_id: str, n: int = 8) -> pd.DataFrame:
         return pd.read_sql(
             text(
                 """
-                select fecha, concepto, monto, cuenta, comentario
+                select fecha, categoria, concepto, monto, cuenta, comentario
                 from gastos
                 where tienda_id = :tienda_id
                 order by fecha desc, creado_en desc
@@ -111,6 +111,26 @@ def ultimos_gastos(tienda_id: str, n: int = 8) -> pd.DataFrame:
             ),
             conn,
             params={"tienda_id": tienda_id, "n": n},
+        )
+
+
+@st.cache_data(ttl=60)
+def gastos_por_categoria(tienda_id: str) -> pd.DataFrame:
+    """Total histórico de gastos agrupado por categoría, para el análisis de en qué se gasta."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select categoria, count(*) as cantidad, sum(monto) as total
+                from gastos
+                where tienda_id = :tienda_id
+                group by categoria
+                order by total desc
+                """
+            ),
+            conn,
+            params={"tienda_id": tienda_id},
         )
 
 

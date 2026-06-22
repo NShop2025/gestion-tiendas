@@ -17,5 +17,6 @@ paginas = [
     st.Page("pages/6_Resumen.py", title="Resumen", icon="📊"),
     st.Page("pages/7_Resumen_Mensual.py", title="Resumen Mensual", icon="📅"),
     st.Page("pages/8_Stock.py", title="Stock", icon="📦"),
+    st.Page("pages/9_Analisis.py", title="Análisis", icon="🔍"),
 ]
 st.navigation(paginas).run()
