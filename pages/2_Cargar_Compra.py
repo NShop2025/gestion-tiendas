@@ -29,9 +29,8 @@ with st.expander("🕒 Últimas compras cargadas (para ver dónde quedó el últ
         st.caption("Todavía no hay compras cargadas.")
     else:
         st.dataframe(
-            df_ultimas.rename(
+            df_ultimas.drop(columns=["creado_en"]).rename(
                 columns={
-                    "creado_en": "Cargado",
                     "fecha": "Fecha",
                     "producto": "Producto",
                     "cantidad": "Cantidad",

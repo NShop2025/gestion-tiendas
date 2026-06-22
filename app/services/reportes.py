@@ -94,6 +94,46 @@ def ultimas_compras(tienda_id: str, n: int = 8) -> pd.DataFrame:
         )
 
 
+@st.cache_data(ttl=30)
+def ultimos_gastos(tienda_id: str, n: int = 8) -> pd.DataFrame:
+    """Últimos gastos por fecha del gasto, mismo criterio que ultimas_ventas."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select fecha, concepto, monto, cuenta, comentario
+                from gastos
+                where tienda_id = :tienda_id
+                order by fecha desc, creado_en desc
+                limit :n
+                """
+            ),
+            conn,
+            params={"tienda_id": tienda_id, "n": n},
+        )
+
+
+@st.cache_data(ttl=30)
+def ultimos_envios(tienda_id: str, n: int = 8) -> pd.DataFrame:
+    """Últimos pagos de envíos por fecha, mismo criterio que ultimas_ventas."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select fecha, cuenta, cadete, cantidad_envios, costo_unitario, comentario
+                from envios
+                where tienda_id = :tienda_id
+                order by fecha desc, creado_en desc
+                limit :n
+                """
+            ),
+            conn,
+            params={"tienda_id": tienda_id, "n": n},
+        )
+
+
 @st.cache_data(ttl=60)
 def metricas_generales(tienda_id: str) -> dict:
     """Totales históricos de la tienda para las tarjetas del Resumen."""

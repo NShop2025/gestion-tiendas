@@ -6,6 +6,7 @@ from sqlalchemy import text
 
 from app.services.auth import requerir_login
 from app.services.db import get_engine
+from app.services.reportes import ultimos_envios
 from app.services.tiendas import selector_tienda
 
 cargar_config()
@@ -16,6 +17,26 @@ tienda_id, tienda_nombre = selector_tienda()
 
 st.title(f"Cargar pago de envíos — {tienda_nombre}")
 st.caption("Pagos a cadetería (FLEX). Se descuentan de la cuenta elegida.")
+
+with st.expander("🕒 Últimos pagos de envíos cargados (para ver dónde quedó el último que cargó)", expanded=True):
+    df_ultimos = ultimos_envios(tienda_id)
+    if df_ultimos.empty:
+        st.caption("Todavía no hay pagos de envíos cargados.")
+    else:
+        st.dataframe(
+            df_ultimos.rename(
+                columns={
+                    "fecha": "Fecha",
+                    "cuenta": "Cuenta",
+                    "cadete": "Cadete",
+                    "cantidad_envios": "Cantidad de envíos",
+                    "costo_unitario": "Costo por envío",
+                    "comentario": "Comentario",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 with st.form("cargar_envio"):
     c1, c2 = st.columns(2)
@@ -55,4 +76,5 @@ if enviado:
             },
         )
 
+    ultimos_envios.clear()
     st.success("Pago de envíos guardado.")

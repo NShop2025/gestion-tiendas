@@ -6,6 +6,7 @@ from sqlalchemy import text
 
 from app.services.auth import requerir_login
 from app.services.db import get_engine
+from app.services.reportes import ultimos_gastos
 from app.services.tiendas import selector_tienda
 
 cargar_config()
@@ -16,6 +17,25 @@ tienda_id, tienda_nombre = selector_tienda()
 
 st.title(f"Cargar gasto — {tienda_nombre}")
 st.caption("Gastos varios (packing, bolsas, etc.) que se descuentan de la cuenta elegida.")
+
+with st.expander("🕒 Últimos gastos cargados (para ver dónde quedó el último que cargó)", expanded=True):
+    df_ultimos = ultimos_gastos(tienda_id)
+    if df_ultimos.empty:
+        st.caption("Todavía no hay gastos cargados.")
+    else:
+        st.dataframe(
+            df_ultimos.rename(
+                columns={
+                    "fecha": "Fecha",
+                    "concepto": "Concepto",
+                    "monto": "Monto",
+                    "cuenta": "Cuenta",
+                    "comentario": "Comentario",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 with st.form("cargar_gasto"):
     c1, c2 = st.columns(2)
@@ -52,4 +72,5 @@ if enviado:
             },
         )
 
+    ultimos_gastos.clear()
     st.success("Gasto guardado.")
