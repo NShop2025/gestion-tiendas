@@ -23,7 +23,7 @@ st.caption(
     "y guardalos juntos (misma fecha y proveedor), como en el Excel."
 )
 
-with st.expander("🕒 Últimas compras cargadas (para ver dónde quedó el último que cargó)", expanded=True):
+with st.expander("🕒 Últimas compras cargadas (para ver dónde quedó el último que cargó)", expanded=False):
     df_ultimas = ultimas_compras(tienda_id)
     if df_ultimas.empty:
         st.caption("Todavía no hay compras cargadas.")

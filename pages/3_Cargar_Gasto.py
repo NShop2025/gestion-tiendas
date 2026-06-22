@@ -19,7 +19,7 @@ tienda_id, tienda_nombre = selector_tienda()
 st.title(f"Cargar gasto — {tienda_nombre}")
 st.caption("Gastos varios (packing, bolsas, etc.) que se descuentan de la cuenta elegida.")
 
-with st.expander("🕒 Últimos gastos cargados (para ver dónde quedó el último que cargó)", expanded=True):
+with st.expander("🕒 Últimos gastos cargados (para ver dónde quedó el último que cargó)", expanded=False):
     df_ultimos = ultimos_gastos(tienda_id)
     if df_ultimos.empty:
         st.caption("Todavía no hay gastos cargados.")

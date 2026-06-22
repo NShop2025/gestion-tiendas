@@ -424,6 +424,53 @@ def ultimos_retiros(tienda_id: str, n: int = 8) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
+def ventas_por_canal(tienda_id: str) -> pd.DataFrame:
+    """Total histórico de ventas agrupado por canal (mercado_libre/web/otro)."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select canal, count(*) as cantidad_ventas,
+                       sum(ingreso_bruto - comision_ml + ingreso_envio) as ingreso_neto
+                from ventas
+                where tienda_id = :tienda_id
+                group by canal
+                order by ingreso_neto desc
+                """
+            ),
+            conn,
+            params={"tienda_id": tienda_id},
+        )
+
+
+@st.cache_data(ttl=60)
+def top_productos(tienda_id: str, n: int = 10) -> pd.DataFrame:
+    """Productos más vendidos históricamente por ingreso neto, con cantidad y ganancia."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select p.nombre as producto,
+                       sum(v.cantidad) as cantidad_vendida,
+                       sum(v.ingreso_bruto - v.comision_ml + v.ingreso_envio) as ingreso_neto,
+                       sum(v.ingreso_bruto - v.comision_ml + v.ingreso_envio
+                           - v.cantidad * v.costo_unitario_venta) as ganancia
+                from ventas v
+                join productos p on p.id = v.producto_id
+                where v.tienda_id = :tienda_id
+                group by p.nombre
+                order by ingreso_neto desc
+                limit :n
+                """
+            ),
+            conn,
+            params={"tienda_id": tienda_id, "n": n},
+        )
+
+
+@st.cache_data(ttl=60)
 def stock_actual(tienda_id: str) -> pd.DataFrame:
     engine = get_engine()
     with engine.connect() as conn:
@@ -435,3 +482,11 @@ def stock_actual(tienda_id: str) -> pd.DataFrame:
             conn,
             params={"tienda_id": tienda_id},
         )
+
+
+def stock_actual_producto(tienda_id: str, nombre: str) -> int | None:
+    """Stock actual de un producto puntual, para mostrar al elegirlo en Cargar Venta.
+    None si el producto todavía no tiene compras/ventas registradas."""
+    df = stock_actual(tienda_id)
+    fila = df[df["producto"] == nombre]
+    return int(fila["stock_actual"].iloc[0]) if not fila.empty else None

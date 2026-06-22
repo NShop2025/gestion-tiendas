@@ -13,7 +13,7 @@ from app.services.productos import (
     obtener_o_crear_producto,
     ultimo_costo_unitario_por_nombre,
 )
-from app.services.reportes import buscar_ventas, ultimas_ventas
+from app.services.reportes import buscar_ventas, stock_actual_producto, ultimas_ventas
 from app.services.tiendas import selector_tienda
 
 cargar_config()
@@ -27,7 +27,7 @@ st.caption(
     "(misma fecha y hora), como en el Excel."
 )
 
-with st.expander("🕒 Últimas ventas cargadas (para ver dónde quedó el último que cargó)", expanded=True):
+with st.expander("🕒 Últimas ventas cargadas (para ver dónde quedó el último que cargó)", expanded=False):
     df_ultimas = ultimas_ventas(tienda_id)
     if df_ultimas.empty:
         st.caption("Todavía no hay ventas cargadas.")
@@ -73,9 +73,11 @@ productos = listar_productos(tienda_id)
 opciones_producto = productos["nombre"].tolist()
 
 c1, c2, c3 = st.columns(3)
-canal = c1.radio("Canal", ["Mercado Libre", "Web"], horizontal=True)
-fecha = c2.date_input("Fecha", value=date.today())
-hora = c3.time_input("Hora", value=datetime.now().time())
+canal = c1.radio("Canal", ["Mercado Libre", "Web"], horizontal=True, key="venta_canal")
+fecha = c2.date_input("Fecha", value=date.today(), key="venta_fecha")
+# key fijo: sin esto, cada rerun (ej. al tocar "Agregar al carrito") recalculaba
+# datetime.now().time() de nuevo y pisaba la hora que el usuario acababa de elegir.
+hora = c3.time_input("Hora", value=datetime.now().time(), step=60, key="venta_hora")
 canal_db = "mercado_libre" if canal == "Mercado Libre" else "web"
 
 st.divider()
@@ -94,6 +96,13 @@ producto_nombre = st.selectbox(
     key=f"producto_{form_key}",
 )
 costo_sugerido = ultimo_costo_unitario_por_nombre(tienda_id, producto_nombre) if producto_nombre else 0.0
+
+if producto_nombre:
+    stock = stock_actual_producto(tienda_id, producto_nombre)
+    if stock is not None and stock <= 5:
+        st.warning(f"⚠️ Queda poco stock de '{producto_nombre}': {stock} unidad(es). Reponer con el proveedor.")
+    elif stock is not None:
+        st.caption(f"Stock actual: {stock} unidad(es).")
 
 with st.form(form_key, clear_on_submit=True):
     c4, c5 = st.columns(2)

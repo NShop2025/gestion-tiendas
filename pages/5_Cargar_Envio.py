@@ -18,7 +18,7 @@ tienda_id, tienda_nombre = selector_tienda()
 st.title(f"Cargar pago de envíos — {tienda_nombre}")
 st.caption("Pagos a cadetería (FLEX). Se descuentan de la cuenta elegida.")
 
-with st.expander("🕒 Últimos pagos de envíos cargados (para ver dónde quedó el último que cargó)", expanded=True):
+with st.expander("🕒 Últimos pagos de envíos cargados (para ver dónde quedó el último que cargó)", expanded=False):
     df_ultimos = ultimos_envios(tienda_id)
     if df_ultimos.empty:
         st.caption("Todavía no hay pagos de envíos cargados.")

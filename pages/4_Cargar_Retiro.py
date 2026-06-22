@@ -17,7 +17,7 @@ tienda_id, tienda_nombre = selector_tienda()
 
 st.title(f"Cargar retiro — {tienda_nombre}")
 
-with st.expander("🕒 Últimos retiros cargados (para ver dónde quedó el último que cargó)", expanded=True):
+with st.expander("🕒 Últimos retiros cargados (para ver dónde quedó el último que cargó)", expanded=False):
     df_ultimos = ultimos_retiros(tienda_id)
     if df_ultimos.empty:
         st.caption("Todavía no hay retiros cargados.")
