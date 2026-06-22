@@ -17,6 +17,7 @@ def _usuarios_validos() -> dict[str, str]:
 def requerir_login() -> str:
     """Bloquea la página hasta que el usuario ingrese credenciales válidas. Devuelve el nombre logueado."""
     if "usuario" in st.session_state:
+        _mostrar_sesion(st.session_state["usuario"])
         return st.session_state["usuario"]
 
     st.title("Gestión Tiendas")
@@ -34,3 +35,10 @@ def requerir_login() -> str:
             st.error("Usuario o clave incorrectos")
 
     st.stop()
+
+
+def _mostrar_sesion(nombre: str) -> None:
+    st.sidebar.success(f"Conectado como {nombre}")
+    if st.sidebar.button("Cerrar sesión"):
+        del st.session_state["usuario"]
+        st.rerun()

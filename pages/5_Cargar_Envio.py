@@ -10,7 +10,6 @@ from app.services.reportes import ultimos_envios
 from app.services.tiendas import selector_tienda
 
 cargar_config()
-st.set_page_config(page_title="Cargar Envío", page_icon="🚚", layout="wide")
 
 usuario = requerir_login()
 tienda_id, tienda_nombre = selector_tienda()

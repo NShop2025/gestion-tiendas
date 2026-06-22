@@ -9,7 +9,6 @@ from app.services.reportes import metricas_generales, resumen_mensual, saldo_dis
 from app.services.tiendas import selector_tienda
 
 cargar_config()
-st.set_page_config(page_title="Resumen", page_icon="📊", layout="wide")
 
 usuario = requerir_login()
 tienda_id, tienda_nombre = selector_tienda()
