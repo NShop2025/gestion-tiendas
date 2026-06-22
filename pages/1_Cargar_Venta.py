@@ -7,12 +7,13 @@ from sqlalchemy import text
 
 from app.services.auth import requerir_login
 from app.services.db import get_engine
+from app.services.eliminar import panel_eliminar
 from app.services.productos import (
     listar_productos,
     obtener_o_crear_producto,
     ultimo_costo_unitario_por_nombre,
 )
-from app.services.reportes import ultimas_ventas
+from app.services.reportes import buscar_ventas, ultimas_ventas
 from app.services.tiendas import selector_tienda
 
 cargar_config()
@@ -45,6 +46,23 @@ with st.expander("🕒 Últimas ventas cargadas (para ver dónde quedó el últi
             use_container_width=True,
             hide_index=True,
         )
+
+panel_eliminar(
+    tienda_id=tienda_id,
+    tabla="ventas",
+    buscar_fn=buscar_ventas,
+    columnas={
+        "fecha": "Fecha",
+        "hora": "Hora",
+        "producto": "Producto",
+        "cantidad": "Cantidad",
+        "precio_unitario": "Precio unitario",
+        "canal": "Canal",
+        "comentario": "Comentario",
+    },
+    key="ventas",
+    limpiar_cache=(ultimas_ventas,),
+)
 
 if "carrito_venta" not in st.session_state:
     st.session_state["carrito_venta"] = []

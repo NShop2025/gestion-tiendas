@@ -6,7 +6,8 @@ from sqlalchemy import text
 
 from app.services.auth import requerir_login
 from app.services.db import get_engine
-from app.services.reportes import ultimos_envios
+from app.services.eliminar import panel_eliminar
+from app.services.reportes import buscar_envios, ultimos_envios
 from app.services.tiendas import selector_tienda
 
 cargar_config()
@@ -36,6 +37,22 @@ with st.expander("🕒 Últimos pagos de envíos cargados (para ver dónde qued�
             use_container_width=True,
             hide_index=True,
         )
+
+panel_eliminar(
+    tienda_id=tienda_id,
+    tabla="envios",
+    buscar_fn=buscar_envios,
+    columnas={
+        "fecha": "Fecha",
+        "cuenta": "Cuenta",
+        "cadete": "Cadete",
+        "cantidad_envios": "Cantidad de envíos",
+        "costo_unitario": "Costo por envío",
+        "comentario": "Comentario",
+    },
+    key="envios",
+    limpiar_cache=(ultimos_envios,),
+)
 
 with st.form("cargar_envio"):
     c1, c2 = st.columns(2)

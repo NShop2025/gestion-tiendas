@@ -6,8 +6,9 @@ from sqlalchemy import text
 
 from app.services.auth import requerir_login
 from app.services.db import get_engine
+from app.services.eliminar import panel_eliminar
 from app.services.gastos import CATEGORIAS_GASTO
-from app.services.reportes import ultimos_gastos
+from app.services.reportes import buscar_gastos, ultimos_gastos
 from app.services.tiendas import selector_tienda
 
 cargar_config()
@@ -37,6 +38,30 @@ with st.expander("🕒 Últimos gastos cargados (para ver dónde quedó el últi
             use_container_width=True,
             hide_index=True,
         )
+
+
+def _buscar_gastos_con_etiqueta(tienda_id, desde, hasta, texto):
+    df = buscar_gastos(tienda_id, desde, hasta, texto)
+    if not df.empty:
+        df["categoria"] = df["categoria"].map(CATEGORIAS_GASTO)
+    return df
+
+
+panel_eliminar(
+    tienda_id=tienda_id,
+    tabla="gastos",
+    buscar_fn=_buscar_gastos_con_etiqueta,
+    columnas={
+        "fecha": "Fecha",
+        "categoria": "Categoría",
+        "concepto": "Concepto",
+        "monto": "Monto",
+        "cuenta": "Cuenta",
+        "comentario": "Comentario",
+    },
+    key="gastos",
+    limpiar_cache=(ultimos_gastos,),
+)
 
 with st.form("cargar_gasto"):
     c1, c2 = st.columns(2)

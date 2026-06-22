@@ -262,6 +262,167 @@ def resumen_mensual(tienda_id: str) -> pd.DataFrame:
     return df
 
 
+def buscar_ventas(tienda_id: str, desde, hasta, texto: str = "", limit: int = 300) -> pd.DataFrame:
+    """Busca ventas por rango de fecha y texto libre (producto o comentario), para el panel
+    de eliminar. Sin cache: tiene que reflejar filtros en vivo y altas/bajas al instante."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select v.id, v.fecha, v.hora, p.nombre as producto, v.cantidad,
+                       v.precio_unitario, v.canal, v.comentario
+                from ventas v
+                join productos p on p.id = v.producto_id
+                where v.tienda_id = :tienda_id
+                  and v.fecha between :desde and :hasta
+                  and (:texto = '' or p.nombre ilike :texto_like or v.comentario ilike :texto_like)
+                order by v.fecha desc, v.hora desc nulls last
+                limit :limit
+                """
+            ),
+            conn,
+            params={
+                "tienda_id": tienda_id,
+                "desde": desde,
+                "hasta": hasta,
+                "texto": texto,
+                "texto_like": f"%{texto}%",
+                "limit": limit,
+            },
+        )
+
+
+def buscar_compras(tienda_id: str, desde, hasta, texto: str = "", limit: int = 300) -> pd.DataFrame:
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select c.id, c.fecha, p.nombre as producto, c.cantidad, c.costo_unitario,
+                       c.costo_total, c.cuenta, c.proveedor_comentario
+                from compras c
+                join productos p on p.id = c.producto_id
+                where c.tienda_id = :tienda_id
+                  and c.fecha between :desde and :hasta
+                  and (:texto = '' or p.nombre ilike :texto_like or c.proveedor_comentario ilike :texto_like)
+                order by c.fecha desc
+                limit :limit
+                """
+            ),
+            conn,
+            params={
+                "tienda_id": tienda_id,
+                "desde": desde,
+                "hasta": hasta,
+                "texto": texto,
+                "texto_like": f"%{texto}%",
+                "limit": limit,
+            },
+        )
+
+
+def buscar_gastos(tienda_id: str, desde, hasta, texto: str = "", limit: int = 300) -> pd.DataFrame:
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select id, fecha, categoria, concepto, monto, cuenta, comentario
+                from gastos
+                where tienda_id = :tienda_id
+                  and fecha between :desde and :hasta
+                  and (:texto = '' or concepto ilike :texto_like or comentario ilike :texto_like)
+                order by fecha desc
+                limit :limit
+                """
+            ),
+            conn,
+            params={
+                "tienda_id": tienda_id,
+                "desde": desde,
+                "hasta": hasta,
+                "texto": texto,
+                "texto_like": f"%{texto}%",
+                "limit": limit,
+            },
+        )
+
+
+def buscar_retiros(tienda_id: str, desde, hasta, texto: str = "", limit: int = 300) -> pd.DataFrame:
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select id, fecha, monto, socio, comentario
+                from retiros
+                where tienda_id = :tienda_id
+                  and fecha between :desde and :hasta
+                  and (:texto = '' or socio ilike :texto_like or comentario ilike :texto_like)
+                order by fecha desc
+                limit :limit
+                """
+            ),
+            conn,
+            params={
+                "tienda_id": tienda_id,
+                "desde": desde,
+                "hasta": hasta,
+                "texto": texto,
+                "texto_like": f"%{texto}%",
+                "limit": limit,
+            },
+        )
+
+
+def buscar_envios(tienda_id: str, desde, hasta, texto: str = "", limit: int = 300) -> pd.DataFrame:
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select id, fecha, cuenta, cadete, cantidad_envios, costo_unitario, comentario
+                from envios
+                where tienda_id = :tienda_id
+                  and fecha between :desde and :hasta
+                  and (:texto = '' or cadete ilike :texto_like or comentario ilike :texto_like)
+                order by fecha desc
+                limit :limit
+                """
+            ),
+            conn,
+            params={
+                "tienda_id": tienda_id,
+                "desde": desde,
+                "hasta": hasta,
+                "texto": texto,
+                "texto_like": f"%{texto}%",
+                "limit": limit,
+            },
+        )
+
+
+@st.cache_data(ttl=30)
+def ultimos_retiros(tienda_id: str, n: int = 8) -> pd.DataFrame:
+    """Últimos retiros por fecha, mismo criterio que ultimas_ventas."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select fecha, monto, socio, comentario
+                from retiros
+                where tienda_id = :tienda_id
+                order by fecha desc, creado_en desc
+                limit :n
+                """
+            ),
+            conn,
+            params={"tienda_id": tienda_id, "n": n},
+        )
+
+
 @st.cache_data(ttl=60)
 def stock_actual(tienda_id: str) -> pd.DataFrame:
     engine = get_engine()
