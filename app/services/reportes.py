@@ -94,7 +94,7 @@ def resumen_mensual(tienda_id: str) -> pd.DataFrame:
                 select date_trunc('month', fecha)::date as mes,
                        sum(ingreso_bruto) as ventas_brutas,
                        sum(cantidad * costo_unitario_venta) as costo_mercaderia_vendida,
-                       sum(ingreso_bruto - comision_ml + ingreso_envio - cantidad * costo_unitario_venta) as ganancia
+                       sum(ingreso_bruto - comision_ml + ingreso_envio - cantidad * costo_unitario_venta) as margen_bruto
                 from ventas
                 where tienda_id = :tienda_id
                 group by 1
@@ -149,7 +149,10 @@ def resumen_mensual(tienda_id: str) -> pd.DataFrame:
         df = df.merge(otro, on="mes", how="outer")
 
     df = df.fillna(0).sort_values("mes")
-    df["saldo_final"] = df.get("ganancia", 0) - df.get("retiros", 0)
+    # Ganancia igual que la hoja Resumen del Excel: margen bruto (ventas neto + envío - costo
+    # mercadería) menos los gastos de envíos y los gastos varios del mes.
+    df["ganancia"] = df["margen_bruto"] - df["gastos_envios"] - df["gastos_varios"]
+    df["saldo_final"] = df["ganancia"] - df["retiros"]
     return df
 
 
