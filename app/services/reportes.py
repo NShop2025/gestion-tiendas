@@ -49,6 +49,42 @@ def saldo_disponible(tienda_id: str) -> float:
 
 
 @st.cache_data(ttl=60)
+def metricas_generales(tienda_id: str) -> dict:
+    """Totales históricos de la tienda para las tarjetas del Resumen."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        ventas = conn.execute(
+            text(
+                """
+                select
+                    coalesce(sum(ingreso_bruto - comision_ml + ingreso_envio), 0) as ingreso_neto,
+                    coalesce(sum(ingreso_bruto - comision_ml + ingreso_envio
+                                 - cantidad * costo_unitario_venta), 0) as ganancia,
+                    count(*) as cantidad_ventas
+                from ventas where tienda_id = :t
+                """
+            ),
+            {"t": tienda_id},
+        ).mappings().first()
+        compras = conn.execute(
+            text("select coalesce(sum(costo_total), 0) from compras where tienda_id = :t and cuenta <> 'otra'"),
+            {"t": tienda_id},
+        ).scalar()
+        retiros = conn.execute(
+            text("select coalesce(sum(monto), 0) from retiros where tienda_id = :t"),
+            {"t": tienda_id},
+        ).scalar()
+
+    return {
+        "ingreso_neto": float(ventas["ingreso_neto"]),
+        "ganancia": float(ventas["ganancia"]),
+        "cantidad_ventas": int(ventas["cantidad_ventas"]),
+        "compras": float(compras),
+        "retiros": float(retiros),
+    }
+
+
+@st.cache_data(ttl=60)
 def resumen_mensual(tienda_id: str) -> pd.DataFrame:
     engine = get_engine()
     with engine.connect() as conn:

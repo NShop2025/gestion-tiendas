@@ -5,6 +5,7 @@ import streamlit as st
 from sqlalchemy import text
 
 from app.services.db import get_engine
+from app.services.reportes import saldo_disponible
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets"
 LOGOS_POR_SLUG = {
@@ -51,5 +52,23 @@ def selector_tienda() -> tuple[str, str]:
     logo = LOGOS_POR_SLUG.get(fila["slug"])
     if logo and logo.exists():
         st.logo(str(logo), size="large")
+
+    # Saldo siempre visible en la sidebar, en cualquier página.
+    saldo = saldo_disponible(fila["id"])
+    color = "#34D399" if saldo >= 0 else "#F87171"
+    st.sidebar.markdown(
+        f"""
+        <div style="
+            margin-top: 0.5rem; padding: 0.9rem 1rem; border-radius: 12px;
+            background: linear-gradient(135deg, #1E2230 0%, #161A23 100%);
+            border: 1px solid #2A2F3C;">
+            <div style="font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase;
+                        color: #8A90A0; margin-bottom: 0.2rem;">Saldo disponible</div>
+            <div style="font-size: 1.55rem; font-weight: 700; color: {color}; line-height: 1.1;">
+                $ {saldo:,.0f}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     return fila["id"], fila["nombre"]
