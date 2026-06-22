@@ -50,8 +50,9 @@ def saldo_disponible(tienda_id: str) -> float:
 
 @st.cache_data(ttl=30)
 def ultimas_ventas(tienda_id: str, n: int = 8) -> pd.DataFrame:
-    """Últimas ventas cargadas (no por fecha de la venta, sino por orden de carga), para que
-    quien abre la página vea de inmediato hasta dónde llegó el último que cargó."""
+    """Últimas ventas por fecha de la venta (no por orden de carga: los históricos migrados
+    en bloque comparten el mismo creado_en, así que ordenar por carga mostraba ventas viejas
+    primero). Así quien abre la página ve las ventas más recientes y sabe dónde continuar."""
     engine = get_engine()
     with engine.connect() as conn:
         return pd.read_sql(
@@ -62,7 +63,7 @@ def ultimas_ventas(tienda_id: str, n: int = 8) -> pd.DataFrame:
                 from ventas v
                 join productos p on p.id = v.producto_id
                 where v.tienda_id = :tienda_id
-                order by v.creado_en desc
+                order by v.fecha desc, v.hora desc nulls last, v.creado_en desc
                 limit :n
                 """
             ),
@@ -73,7 +74,7 @@ def ultimas_ventas(tienda_id: str, n: int = 8) -> pd.DataFrame:
 
 @st.cache_data(ttl=30)
 def ultimas_compras(tienda_id: str, n: int = 8) -> pd.DataFrame:
-    """Últimas compras cargadas (por orden de carga), mismo criterio que ultimas_ventas."""
+    """Últimas compras por fecha de la compra, mismo criterio que ultimas_ventas."""
     engine = get_engine()
     with engine.connect() as conn:
         return pd.read_sql(
@@ -84,7 +85,7 @@ def ultimas_compras(tienda_id: str, n: int = 8) -> pd.DataFrame:
                 from compras c
                 join productos p on p.id = c.producto_id
                 where c.tienda_id = :tienda_id
-                order by c.creado_en desc
+                order by c.fecha desc, c.creado_en desc
                 limit :n
                 """
             ),
