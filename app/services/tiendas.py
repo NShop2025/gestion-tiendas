@@ -42,7 +42,10 @@ def selector_tienda() -> tuple[str, str]:
 
     opciones = tiendas["nombre"].tolist()
     if "tienda_nombre" not in st.session_state or st.session_state["tienda_nombre"] not in opciones:
-        st.session_state["tienda_nombre"] = opciones[0]
+        # Tienda por defecto al iniciar sesión: NeptunoShop si existe, si no la primera
+        # alfabéticamente (antes quedaba "Marea Boutique" por ser alfabéticamente anterior).
+        default = next((nombre for nombre in opciones if "neptuno" in nombre.lower()), opciones[0])
+        st.session_state["tienda_nombre"] = default
 
     index = opciones.index(st.session_state["tienda_nombre"])
     st.sidebar.selectbox("Tienda", opciones, index=index, key="tienda_widget", on_change=_sincronizar_tienda)
