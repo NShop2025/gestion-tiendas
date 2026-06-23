@@ -138,6 +138,54 @@ def candidatos_gastos(wb) -> list[dict]:
     return filas
 
 
+def candidatos_envios(wb, hoja: str, cuenta: str, col_fecha: int) -> list[dict]:
+    ws = wb[hoja]
+    filas = []
+    for r in range(2, ws.max_row + 1):
+        fecha = ws.cell(r, col_fecha).value
+        cadete = ws.cell(r, col_fecha + 1).value
+        cantidad = ws.cell(r, col_fecha + 2).value
+        costo_unitario = ws.cell(r, col_fecha + 3).value
+        if fecha is None or not cadete or not _es_numero_valido(cantidad):
+            continue
+        filas.append(
+            {
+                "cuenta": cuenta,
+                "fecha": fecha.date() if hasattr(fecha, "date") else fecha,
+                "cadete": str(cadete).strip(),
+                "cantidad_envios": _numero(cantidad),
+                "costo_unitario": _numero(costo_unitario),
+                "comentario": None,
+            }
+        )
+    return filas
+
+
+def candidatos_gastos_flex_santander(wb) -> list[dict]:
+    """Mini-tabla 'COMPRAS' dentro de FLEX SANTANDER (columnas T:V), gastos pagados con
+    Santander que no pasan por la mini-tabla de Compras!N:Q."""
+    ws = wb["FLEX SANTANDER"]
+    filas = []
+    for r in range(3, ws.max_row + 1):
+        fecha = _fecha(ws.cell(r, 20).value)
+        monto = ws.cell(r, 21).value
+        proveedor = ws.cell(r, 22).value
+        if fecha is None or not _es_numero_valido(monto):
+            continue
+        concepto_txt = str(proveedor).strip() if proveedor else "(sin concepto)"
+        filas.append(
+            {
+                "fecha": fecha,
+                "concepto": concepto_txt,
+                "monto": _numero(monto),
+                "cuenta": "santander",
+                "categoria": MAPEO_CATEGORIAS.get(concepto_txt, "otros"),
+                "comentario": None,
+            }
+        )
+    return filas
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("excel_path")
@@ -250,14 +298,33 @@ def main():
                 {"t": tienda_id},
             )
         }
-        candidatos_gastos_ = candidatos_gastos(wb)
+        candidatos_gastos_ = candidatos_gastos(wb) + candidatos_gastos_flex_santander(wb)
         nuevos_gastos = [
             f for f in candidatos_gastos_ if (f["fecha"], f["concepto"], float(f["monto"])) not in existentes_gastos
+        ]
+
+        # --- Envíos ---
+        existentes_envios = {
+            (row.fecha, row.cuenta, row.cadete.strip(), float(row.cantidad_envios), float(row.costo_unitario))
+            for row in conn.execute(
+                text("select fecha, cuenta, cadete, cantidad_envios, costo_unitario from envios where tienda_id = :t"),
+                {"t": tienda_id},
+            )
+        }
+        candidatos_envios_ = candidatos_envios(wb, "FLEX MP", "mercado_pago", 8) + candidatos_envios(
+            wb, "FLEX SANTANDER", "santander", 7
+        )
+        nuevos_envios = [
+            f
+            for f in candidatos_envios_
+            if (f["fecha"], f["cuenta"], f["cadete"], float(f["cantidad_envios"]), float(f["costo_unitario"]))
+            not in existentes_envios
         ]
 
         print(f"Ventas:  {len(candidatas_ventas)} en el Excel, {len(nuevas_ventas)} nuevas")
         print(f"Compras: {len(candidatas_compras)} en el Excel, {len(nuevas_compras)} nuevas")
         print(f"Gastos:  {len(candidatos_gastos_)} en el Excel, {len(nuevos_gastos)} nuevos")
+        print(f"Envíos:  {len(candidatos_envios_)} en el Excel, {len(nuevos_envios)} nuevos")
         print()
 
         if nuevas_ventas:
@@ -279,7 +346,13 @@ def main():
         if nuevos_gastos:
             print("--- Gastos nuevos ---")
             for f in nuevos_gastos:
-                print(f"  {f['fecha']}  {f['concepto']!r}  ${f['monto']}  -> categoria: {f['categoria']}")
+                print(f"  {f['fecha']}  {f['concepto']!r}  ${f['monto']}  cuenta={f['cuenta']}  -> categoria: {f['categoria']}")
+            print()
+
+        if nuevos_envios:
+            print("--- Envíos nuevos ---")
+            for f in nuevos_envios:
+                print(f"  {f['fecha']}  {f['cadete']!r}  x{f['cantidad_envios']}  ${f['costo_unitario']}/u  cuenta={f['cuenta']}")
             print()
 
         if args.dry_run:
@@ -328,7 +401,21 @@ def main():
                 {**f, "tienda_id": tienda_id},
             )
 
-    print(f"Insertado: {len(nuevas_ventas)} ventas, {len(nuevas_compras)} compras, {len(nuevos_gastos)} gastos.")
+        for f in nuevos_envios:
+            conn.execute(
+                text(
+                    """
+                    insert into envios (tienda_id, cuenta, fecha, cadete, cantidad_envios, costo_unitario, comentario)
+                    values (:tienda_id, :cuenta, :fecha, :cadete, :cantidad_envios, :costo_unitario, :comentario)
+                    """
+                ),
+                {**f, "tienda_id": tienda_id},
+            )
+
+    print(
+        f"Insertado: {len(nuevas_ventas)} ventas, {len(nuevas_compras)} compras, "
+        f"{len(nuevos_gastos)} gastos, {len(nuevos_envios)} envíos."
+    )
 
 
 if __name__ == "__main__":

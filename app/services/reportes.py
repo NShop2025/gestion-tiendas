@@ -7,19 +7,35 @@ from app.services.db import get_engine
 
 @st.cache_data(ttl=60)
 def saldo_disponible(tienda_id: str) -> float:
-    """Saldo único consolidado de toda la plata de la tienda (una sola caja).
+    """Saldo disponible en la cuenta de Mercado Pago (la plata real con la que se puede
+    comprar/pagar hoy), no el total consolidado de todas las cuentas.
 
-    Ingresos de TODAS las ventas (todos los canales) menos compras (las pagadas con otra
-    tarjeta / inversión inicial quedan fuera con cuenta='otra'), gastos, retiros y envíos,
-    sin importar la cuenta. Las transferencias internas entre cuentas no se cuentan (mover
-    plata de un bolsillo a otro no cambia el total).
+    Ingresos de ventas Mercado Libre + Web (las de Tiendimport no entran: esa plata no cae
+    en Mercado Pago) menos compras (las pagadas con otra tarjeta / inversión inicial quedan
+    fuera con cuenta='otra'), gastos y envíos pagados con cuenta='mercado_pago', y retiros
+    (se asume que siempre se sacan de Mercado Pago). Los gastos/envíos pagados con Santander
+    no se restan acá porque no afectan la plata de Mercado Pago; si querés la ganancia total
+    de la tienda con todas las cuentas juntas, mirá la pestaña Mensual.
+
+    Excepción: el traspaso histórico de plata de Mercado Pago a Santander (cargado como una
+    "venta" del canal Tiendimport con comentario "SALDO INICIAL SANTANDER", el 13/7/2025 en
+    NeptunoShop) sí se resta - esa plata salió físicamente de Mercado Pago aunque esté
+    registrada en otro canal.
     """
     engine = get_engine()
     with engine.connect() as conn:
         ingresos_ventas = conn.execute(
             text(
                 "select coalesce(sum(ingreso_bruto - comision_ml + ingreso_envio), 0) "
-                "from ventas where tienda_id = :tienda_id"
+                "from ventas where tienda_id = :tienda_id and canal in ('mercado_libre', 'web')"
+            ),
+            {"tienda_id": tienda_id},
+        ).scalar()
+        traspasos_a_santander = conn.execute(
+            text(
+                "select coalesce(sum(ingreso_bruto - comision_ml + ingreso_envio), 0) "
+                "from ventas where tienda_id = :tienda_id and canal = 'otro' "
+                "and comentario ilike '%SALDO INICIAL SANTANDER%'"
             ),
             {"tienda_id": tienda_id},
         ).scalar()
@@ -31,7 +47,10 @@ def saldo_disponible(tienda_id: str) -> float:
             {"tienda_id": tienda_id},
         ).scalar()
         total_gastos = conn.execute(
-            text("select coalesce(sum(monto), 0) from gastos where tienda_id = :tienda_id"),
+            text(
+                "select coalesce(sum(monto), 0) from gastos "
+                "where tienda_id = :tienda_id and cuenta = 'mercado_pago'"
+            ),
             {"tienda_id": tienda_id},
         ).scalar()
         total_retiros = conn.execute(
@@ -39,13 +58,16 @@ def saldo_disponible(tienda_id: str) -> float:
             {"tienda_id": tienda_id},
         ).scalar()
         total_envios = conn.execute(
-            text("select coalesce(sum(costo_total), 0) from envios where tienda_id = :tienda_id"),
+            text(
+                "select coalesce(sum(costo_total), 0) from envios "
+                "where tienda_id = :tienda_id and cuenta = 'mercado_pago'"
+            ),
             {"tienda_id": tienda_id},
         ).scalar()
 
     return float(ingresos_ventas) - float(total_compras) - float(total_gastos) - float(total_retiros) - float(
         total_envios
-    )
+    ) - float(traspasos_a_santander)
 
 
 @st.cache_data(ttl=30)
