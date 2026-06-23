@@ -32,9 +32,12 @@ def _sincronizar_tienda():
     st.session_state["tienda_nombre"] = st.session_state["tienda_widget"]
 
 
-def selector_tienda() -> tuple[str, str]:
+def selector_tienda(mostrar_saldo: bool = True) -> tuple[str, str]:
     """Muestra un selector de tienda en la sidebar, persistente entre páginas.
-    Devuelve (tienda_id, nombre)."""
+    Devuelve (tienda_id, nombre).
+
+    mostrar_saldo=False evita repetir la tarjeta de saldo en la sidebar cuando la página ya
+    tiene su propia tarjeta de saldo grande arriba (ej. Resumen)."""
     tiendas = listar_tiendas()
     if tiendas.empty:
         st.sidebar.error("No hay tiendas cargadas todavía.")
@@ -71,22 +74,25 @@ def selector_tienda() -> tuple[str, str]:
             unsafe_allow_html=True,
         )
 
-    # Saldo siempre visible en la sidebar, en cualquier página.
-    saldo = saldo_disponible(fila["id"])
-    color = "#34D399" if saldo >= 0 else "#F87171"
-    st.sidebar.markdown(
-        f"""
-        <div style="
-            margin-top: 0.5rem; padding: 0.9rem 1rem; border-radius: 12px;
-            background: linear-gradient(135deg, #1E2230 0%, #161A23 100%);
-            border: 1px solid #2A2F3C;">
-            <div style="font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase;
-                        color: #8A90A0; margin-bottom: 0.2rem;">Saldo disponible</div>
-            <div style="font-size: 1.55rem; font-weight: 700; color: {color}; line-height: 1.1;">
-                {fmt_money(saldo)}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    # Saldo visible en la sidebar en cualquier página, salvo donde ya hay una tarjeta propia
+    # más grande (Resumen) para no repetir el mismo número dos veces en la misma pantalla.
+    if mostrar_saldo:
+        saldo = saldo_disponible(fila["id"])
+        color = "#34D399" if saldo >= 0 else "#F87171"
+        st.sidebar.markdown(
+            f"""
+            <div style="
+                margin-top: 0.5rem; padding: 0.9rem 1rem; border-radius: 12px;
+                background: linear-gradient(135deg, #1E2230 0%, #161A23 100%);
+                border: 1px solid #2A2F3C;">
+                <div style="font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase;
+                            color: #8A90A0; margin-bottom: 0.2rem;">Saldo disponible</div>
+                <div style="font-size: 1.55rem; font-weight: 700; color: {color}; line-height: 1.1;">
+                    {fmt_money(saldo)}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.sidebar.divider()
 
     return fila["id"], fila["nombre"]

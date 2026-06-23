@@ -17,38 +17,6 @@ tienda_id, tienda_nombre = selector_tienda()
 
 st.title(f"Cargar retiro — {tienda_nombre}")
 
-with st.expander("🕒 Últimos retiros cargados (para ver dónde quedó el último que cargó)", expanded=False):
-    df_ultimos = ultimos_retiros(tienda_id)
-    if df_ultimos.empty:
-        st.caption("Todavía no hay retiros cargados.")
-    else:
-        st.dataframe(
-            df_ultimos.rename(
-                columns={
-                    "fecha": "Fecha",
-                    "monto": "Monto",
-                    "socio": "Quién retira",
-                    "comentario": "Comentario",
-                }
-            ),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-panel_eliminar(
-    tienda_id=tienda_id,
-    tabla="retiros",
-    buscar_fn=buscar_retiros,
-    columnas={
-        "fecha": "Fecha",
-        "monto": "Monto",
-        "socio": "Quién retira",
-        "comentario": "Comentario",
-    },
-    key="retiros",
-    limpiar_cache=(ultimos_retiros,),
-)
-
 with st.form("cargar_retiro"):
     c1, c2 = st.columns(2)
     fecha = c1.date_input("Fecha", value=date.today())
@@ -84,3 +52,38 @@ if enviado:
 
     ultimos_retiros.clear()
     st.success("Retiro guardado.")
+
+st.divider()
+st.subheader("🗂️ Historial")
+
+with st.expander("🕒 Últimos retiros cargados (para ver dónde quedó el último que cargó)", expanded=False):
+    df_ultimos = ultimos_retiros(tienda_id)
+    if df_ultimos.empty:
+        st.caption("Todavía no hay retiros cargados.")
+    else:
+        st.dataframe(
+            df_ultimos.rename(
+                columns={
+                    "fecha": "Fecha",
+                    "monto": "Monto",
+                    "socio": "Quién retira",
+                    "comentario": "Comentario",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+panel_eliminar(
+    tienda_id=tienda_id,
+    tabla="retiros",
+    buscar_fn=buscar_retiros,
+    columnas={
+        "fecha": "Fecha",
+        "monto": "Monto",
+        "socio": "Quién retira",
+        "comentario": "Comentario",
+    },
+    key="retiros",
+    limpiar_cache=(ultimos_retiros,),
+)

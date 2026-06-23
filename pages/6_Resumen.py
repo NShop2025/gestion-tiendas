@@ -4,7 +4,7 @@ import streamlit as st
 from app.services.config import cargar_config
 
 from app.services.auth import requerir_login
-from app.services.formato import fmt_money, fmt_money_delta
+from app.services.formato import fmt_money, fmt_money_delta, tarjeta_metrica
 from app.services.gastos import CATEGORIAS_GASTO
 from app.services.reportes import (
     gastos_por_categoria,
@@ -19,7 +19,9 @@ from app.services.tiendas import selector_tienda
 cargar_config()
 
 usuario = requerir_login()
-tienda_id, tienda_nombre = selector_tienda()
+# mostrar_saldo=False: esta página ya tiene su propia tarjeta de saldo grande más abajo,
+# repetirla en la sidebar sería redundante.
+tienda_id, tienda_nombre = selector_tienda(mostrar_saldo=False)
 
 st.title(f"Resumen — {tienda_nombre}")
 
@@ -46,10 +48,11 @@ st.markdown(
 
 # Métricas históricas (totales de toda la vida de la tienda).
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Ingreso neto total", fmt_money(m["ingreso_neto"]))
-c2.metric("Ganancia total", fmt_money(m["ganancia"]))
-c3.metric("Mercadería comprada", fmt_money(m["compras"]))
-c4.metric("Retiros de socios", fmt_money(m["retiros"]))
+c1.markdown(tarjeta_metrica("Ingreso neto total", fmt_money(m["ingreso_neto"])), unsafe_allow_html=True)
+c2.markdown(tarjeta_metrica("Ganancia total", fmt_money(m["ganancia"])), unsafe_allow_html=True)
+c3.markdown(tarjeta_metrica("Mercadería comprada", fmt_money(m["compras"])), unsafe_allow_html=True)
+c4.markdown(tarjeta_metrica("Retiros de socios", fmt_money(m["retiros"])), unsafe_allow_html=True)
+st.write("")
 
 df_mensual = resumen_mensual(tienda_id)
 
@@ -104,7 +107,7 @@ with tab_general:
 
             chart = (
                 alt.Chart(df_chart)
-                .mark_bar(color="#6366F1", cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+                .mark_bar(color="#6366F1", cornerRadiusTopLeft=3, cornerRadiusTopRight=3, size=18)
                 .encode(
                     x=alt.X("mes:T", title=None, axis=alt.Axis(format="%b %y")),
                     y=alt.Y("ganancia:Q", title=None),
@@ -164,7 +167,18 @@ with tab_mensual:
             if col in df_mensual.columns:
                 df_mostrar[titulo] = df_mensual[col].map(fmt_money)
 
-        st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+        # Pinta en rojo las celdas cuyo valor numérico original es negativo (ej. un mes con
+        # más retiros que ganancia), para que salte a la vista sin tener que leer cada número.
+        def _texto_negativos(_):
+            estilos = pd.DataFrame("", index=df_mostrar.index, columns=df_mostrar.columns)
+            for col, titulo in columnas.items():
+                if titulo in estilos.columns and col in df_mensual.columns:
+                    estilos.loc[df_mensual[col] < 0, titulo] = "color: #F87171"
+            return estilos
+
+        st.dataframe(
+            df_mostrar.style.apply(_texto_negativos, axis=None), use_container_width=True, hide_index=True
+        )
 
         df_chart = df_mensual[["mes", "ganancia", "ventas_brutas"]].copy()
         df_largo = df_chart.melt("mes", var_name="serie", value_name="monto")

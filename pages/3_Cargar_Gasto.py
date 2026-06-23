@@ -5,6 +5,7 @@ from app.services.config import cargar_config
 from sqlalchemy import text
 
 from app.services.auth import requerir_login
+from app.services.cuentas import CUENTAS
 from app.services.db import get_engine
 from app.services.eliminar import panel_eliminar
 from app.services.gastos import CATEGORIAS_GASTO
@@ -19,54 +20,18 @@ tienda_id, tienda_nombre = selector_tienda()
 st.title(f"Cargar gasto — {tienda_nombre}")
 st.caption("Gastos varios (packing, bolsas, etc.) que se descuentan de la cuenta elegida.")
 
-with st.expander("🕒 Últimos gastos cargados (para ver dónde quedó el último que cargó)", expanded=False):
-    df_ultimos = ultimos_gastos(tienda_id)
-    if df_ultimos.empty:
-        st.caption("Todavía no hay gastos cargados.")
-    else:
-        st.dataframe(
-            df_ultimos.assign(categoria=df_ultimos["categoria"].map(CATEGORIAS_GASTO)).rename(
-                columns={
-                    "fecha": "Fecha",
-                    "categoria": "Categoría",
-                    "concepto": "Concepto",
-                    "monto": "Monto",
-                    "cuenta": "Cuenta",
-                    "comentario": "Comentario",
-                }
-            ),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-
 def _buscar_gastos_con_etiqueta(tienda_id, desde, hasta, texto):
     df = buscar_gastos(tienda_id, desde, hasta, texto)
     if not df.empty:
         df["categoria"] = df["categoria"].map(CATEGORIAS_GASTO)
+        df["cuenta"] = df["cuenta"].map(CUENTAS)
     return df
 
-
-panel_eliminar(
-    tienda_id=tienda_id,
-    tabla="gastos",
-    buscar_fn=_buscar_gastos_con_etiqueta,
-    columnas={
-        "fecha": "Fecha",
-        "categoria": "Categoría",
-        "concepto": "Concepto",
-        "monto": "Monto",
-        "cuenta": "Cuenta",
-        "comentario": "Comentario",
-    },
-    key="gastos",
-    limpiar_cache=(ultimos_gastos,),
-)
 
 with st.form("cargar_gasto"):
     c1, c2 = st.columns(2)
     fecha = c1.date_input("Fecha", value=date.today())
-    cuenta = c2.selectbox("Cuenta", ["mercado_pago", "santander", "otra"])
+    cuenta = c2.selectbox("Cuenta", list(CUENTAS.keys()), format_func=lambda k: CUENTAS[k])
 
     categoria = st.selectbox(
         "Categoría",
@@ -106,3 +71,45 @@ if enviado:
 
     ultimos_gastos.clear()
     st.success("Gasto guardado.")
+
+st.divider()
+st.subheader("🗂️ Historial")
+
+with st.expander("🕒 Últimos gastos cargados (para ver dónde quedó el último que cargó)", expanded=False):
+    df_ultimos = ultimos_gastos(tienda_id)
+    if df_ultimos.empty:
+        st.caption("Todavía no hay gastos cargados.")
+    else:
+        st.dataframe(
+            df_ultimos.assign(
+                categoria=df_ultimos["categoria"].map(CATEGORIAS_GASTO),
+                cuenta=df_ultimos["cuenta"].map(CUENTAS),
+            ).rename(
+                columns={
+                    "fecha": "Fecha",
+                    "categoria": "Categoría",
+                    "concepto": "Concepto",
+                    "monto": "Monto",
+                    "cuenta": "Cuenta",
+                    "comentario": "Comentario",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+panel_eliminar(
+    tienda_id=tienda_id,
+    tabla="gastos",
+    buscar_fn=_buscar_gastos_con_etiqueta,
+    columnas={
+        "fecha": "Fecha",
+        "categoria": "Categoría",
+        "concepto": "Concepto",
+        "monto": "Monto",
+        "cuenta": "Cuenta",
+        "comentario": "Comentario",
+    },
+    key="gastos",
+    limpiar_cache=(ultimos_gastos,),
+)

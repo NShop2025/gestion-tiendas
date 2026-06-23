@@ -27,43 +27,6 @@ st.caption(
     "(misma fecha y hora), como en el Excel."
 )
 
-with st.expander("🕒 Últimas ventas cargadas (para ver dónde quedó el último que cargó)", expanded=False):
-    df_ultimas = ultimas_ventas(tienda_id)
-    if df_ultimas.empty:
-        st.caption("Todavía no hay ventas cargadas.")
-    else:
-        st.dataframe(
-            df_ultimas.drop(columns=["creado_en"]).rename(
-                columns={
-                    "fecha": "Fecha",
-                    "hora": "Hora",
-                    "producto": "Producto",
-                    "cantidad": "Cantidad",
-                    "precio_unitario": "Precio unitario",
-                    "canal": "Canal",
-                }
-            ),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-panel_eliminar(
-    tienda_id=tienda_id,
-    tabla="ventas",
-    buscar_fn=buscar_ventas,
-    columnas={
-        "fecha": "Fecha",
-        "hora": "Hora",
-        "producto": "Producto",
-        "cantidad": "Cantidad",
-        "precio_unitario": "Precio unitario",
-        "canal": "Canal",
-        "comentario": "Comentario",
-    },
-    key="ventas",
-    limpiar_cache=(ultimas_ventas,),
-)
-
 if "carrito_venta" not in st.session_state:
     st.session_state["carrito_venta"] = []
 if "item_form_key" not in st.session_state:
@@ -134,6 +97,19 @@ if agregado:
     else:
         ingreso_bruto = precio_unitario * cantidad
         comision_ml = max(ingreso_bruto - ingreso_neto, 0)
+        costo_total = costo_unitario_venta * cantidad
+        ingreso_total = ingreso_neto + ingreso_envio
+
+        if ingreso_total < costo_total:
+            # st.warning no sobrevive al rerun de abajo (que limpia el formulario), por eso
+            # se usa st.toast: queda visible unos segundos igual después del rerun. La
+            # columna "¿Pierde plata?" en la tabla del carrito deja la alerta persistente.
+            st.toast(
+                f"⚠️ '{producto_nombre}' se vende a pérdida: entran ${ingreso_total:,.0f} "
+                f"pero el costo es ${costo_total:,.0f}.",
+                icon="⚠️",
+            )
+
         st.session_state["carrito_venta"].append(
             {
                 "producto": producto_nombre.strip(),
@@ -155,6 +131,15 @@ if carrito:
     st.subheader(f"Carrito ({len(carrito)} producto{'s' if len(carrito) != 1 else ''})")
 
     df_carrito = pd.DataFrame(carrito)
+    df_carrito["ganancia"] = (
+        df_carrito["precio_unitario"] * df_carrito["cantidad"]
+        - df_carrito["comision_ml"]
+        + df_carrito["ingreso_envio"]
+        - df_carrito["costo_unitario_venta"] * df_carrito["cantidad"]
+    )
+    if (df_carrito["ganancia"] < 0).any():
+        st.warning("⚠️ Hay productos en el carrito que se están vendiendo a pérdida (ver columna Ganancia).")
+
     df_mostrar = df_carrito.rename(
         columns={
             "producto": "Producto",
@@ -163,6 +148,7 @@ if carrito:
             "comision_ml": "Comisión ML",
             "ingreso_envio": "Ingreso envío",
             "costo_unitario_venta": "Costo unitario",
+            "ganancia": "Ganancia",
             "comentario": "Comentario",
         }
     )
@@ -217,3 +203,43 @@ if carrito:
         listar_productos.clear()
         ultimas_ventas.clear()
         st.success(f"Venta guardada con {len(carrito)} producto(s).")
+
+st.divider()
+st.subheader("🗂️ Historial")
+
+with st.expander("🕒 Últimas ventas cargadas (para ver dónde quedó el último que cargó)", expanded=False):
+    df_ultimas = ultimas_ventas(tienda_id)
+    if df_ultimas.empty:
+        st.caption("Todavía no hay ventas cargadas.")
+    else:
+        st.dataframe(
+            df_ultimas.drop(columns=["creado_en"]).rename(
+                columns={
+                    "fecha": "Fecha",
+                    "hora": "Hora",
+                    "producto": "Producto",
+                    "cantidad": "Cantidad",
+                    "precio_unitario": "Precio unitario",
+                    "canal": "Canal",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+panel_eliminar(
+    tienda_id=tienda_id,
+    tabla="ventas",
+    buscar_fn=buscar_ventas,
+    columnas={
+        "fecha": "Fecha",
+        "hora": "Hora",
+        "producto": "Producto",
+        "cantidad": "Cantidad",
+        "precio_unitario": "Precio unitario",
+        "canal": "Canal",
+        "comentario": "Comentario",
+    },
+    key="ventas",
+    limpiar_cache=(ultimas_ventas,),
+)

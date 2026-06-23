@@ -6,11 +6,19 @@ from app.services.config import cargar_config
 from sqlalchemy import text
 
 from app.services.auth import requerir_login
+from app.services.cuentas import CUENTAS
 from app.services.db import get_engine
 from app.services.eliminar import panel_eliminar
 from app.services.productos import listar_productos, obtener_o_crear_producto
 from app.services.reportes import buscar_compras, ultimas_compras
 from app.services.tiendas import selector_tienda
+
+
+def _buscar_compras_con_etiqueta(tienda_id, desde, hasta, texto):
+    df = buscar_compras(tienda_id, desde, hasta, texto)
+    if not df.empty:
+        df["cuenta"] = df["cuenta"].map(CUENTAS)
+    return df
 
 cargar_config()
 
@@ -21,42 +29,6 @@ st.title(f"Cargar compra — {tienda_nombre}")
 st.caption(
     "Si la compra tiene varios productos del mismo proveedor, agregalos todos al carrito "
     "y guardalos juntos (misma fecha y proveedor), como en el Excel."
-)
-
-with st.expander("🕒 Últimas compras cargadas (para ver dónde quedó el último que cargó)", expanded=False):
-    df_ultimas = ultimas_compras(tienda_id)
-    if df_ultimas.empty:
-        st.caption("Todavía no hay compras cargadas.")
-    else:
-        st.dataframe(
-            df_ultimas.drop(columns=["creado_en"]).rename(
-                columns={
-                    "fecha": "Fecha",
-                    "producto": "Producto",
-                    "cantidad": "Cantidad",
-                    "costo_unitario": "Costo unitario",
-                    "proveedor_comentario": "Proveedor / comentario",
-                }
-            ),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-panel_eliminar(
-    tienda_id=tienda_id,
-    tabla="compras",
-    buscar_fn=buscar_compras,
-    columnas={
-        "fecha": "Fecha",
-        "producto": "Producto",
-        "cantidad": "Cantidad",
-        "costo_unitario": "Costo unitario",
-        "costo_total": "Costo total",
-        "cuenta": "Cuenta",
-        "proveedor_comentario": "Proveedor / comentario",
-    },
-    key="compras",
-    limpiar_cache=(ultimas_compras,),
 )
 
 if "carrito_compra" not in st.session_state:
@@ -165,3 +137,42 @@ if carrito:
         listar_productos.clear()
         ultimas_compras.clear()
         st.success(f"Compra guardada con {len(carrito)} producto(s).")
+
+st.divider()
+st.subheader("🗂️ Historial")
+
+with st.expander("🕒 Últimas compras cargadas (para ver dónde quedó el último que cargó)", expanded=False):
+    df_ultimas = ultimas_compras(tienda_id)
+    if df_ultimas.empty:
+        st.caption("Todavía no hay compras cargadas.")
+    else:
+        st.dataframe(
+            df_ultimas.drop(columns=["creado_en"]).rename(
+                columns={
+                    "fecha": "Fecha",
+                    "producto": "Producto",
+                    "cantidad": "Cantidad",
+                    "costo_unitario": "Costo unitario",
+                    "proveedor_comentario": "Proveedor / comentario",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+panel_eliminar(
+    tienda_id=tienda_id,
+    tabla="compras",
+    buscar_fn=_buscar_compras_con_etiqueta,
+    columnas={
+        "fecha": "Fecha",
+        "producto": "Producto",
+        "cantidad": "Cantidad",
+        "costo_unitario": "Costo unitario",
+        "costo_total": "Costo total",
+        "cuenta": "Cuenta",
+        "proveedor_comentario": "Proveedor / comentario",
+    },
+    key="compras",
+    limpiar_cache=(ultimas_compras,),
+)
