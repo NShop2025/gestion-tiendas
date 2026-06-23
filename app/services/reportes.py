@@ -506,6 +506,37 @@ def stock_actual(tienda_id: str) -> pd.DataFrame:
         )
 
 
+def productos_a_reponer(tienda_id: str, dias: int = 30, ventas_min: int = 3, stock_max: int = 2) -> pd.DataFrame:
+    """Productos que se vendieron bien en los últimos `dias` días (>= ventas_min unidades)
+    pero les queda poco stock (entre 0 y stock_max) - candidatos a reponer ya, antes de que
+    se queden sin nada de algo que se está vendiendo.
+
+    Se exige stock_actual >= 0 a propósito: hay productos con stock negativo por cruces de
+    nombre entre Compras y Ventas del Excel histórico (ver README) que no reflejan un stock
+    real bajo, sino un problema de datos - mezclarlos acá le restaría confianza al aviso.
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pd.read_sql(
+            text(
+                """
+                select p.nombre as producto, sum(v.cantidad) as vendido, sa.stock_actual
+                from ventas v
+                join productos p on p.id = v.producto_id
+                join stock_actual sa on sa.producto_id = p.id
+                where v.tienda_id = :tienda_id
+                  and v.fecha >= current_date - (:dias || ' days')::interval
+                group by p.nombre, sa.stock_actual
+                having sum(v.cantidad) >= :ventas_min
+                   and sa.stock_actual >= 0 and sa.stock_actual < :stock_max
+                order by vendido desc
+                """
+            ),
+            conn,
+            params={"tienda_id": tienda_id, "dias": dias, "ventas_min": ventas_min, "stock_max": stock_max},
+        )
+
+
 def stock_actual_producto(tienda_id: str, nombre: str) -> int | None:
     """Stock actual de un producto puntual, para mostrar al elegirlo en Cargar Venta.
     None si el producto todavía no tiene compras/ventas registradas."""

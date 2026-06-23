@@ -9,6 +9,7 @@ from app.services.gastos import CATEGORIAS_GASTO
 from app.services.reportes import (
     gastos_por_categoria,
     metricas_generales,
+    productos_a_reponer,
     resumen_mensual,
     saldo_disponible,
     top_productos,
@@ -22,6 +23,21 @@ usuario = requerir_login()
 # mostrar_saldo=False: esta página ya tiene su propia tarjeta de saldo grande más abajo,
 # repetirla en la sidebar sería redundante.
 tienda_id, tienda_nombre = selector_tienda(mostrar_saldo=False)
+
+df_reponer = productos_a_reponer(tienda_id)
+if not df_reponer.empty:
+    with st.expander(
+        f"🔥 {len(df_reponer)} producto(s) que se venden bien y se están quedando sin stock",
+        expanded=True,
+    ):
+        st.caption("Vendieron varias unidades en los últimos 30 días y les queda muy poco stock.")
+        st.dataframe(
+            df_reponer.rename(
+                columns={"producto": "Producto", "vendido": "Vendido (30 días)", "stock_actual": "Stock actual"}
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 st.title(f"Resumen — {tienda_nombre}")
 
